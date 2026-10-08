@@ -5,6 +5,7 @@ Patrón "plantilla": la clase madre `GraficoBechdel` hace todo lo común
 """
 
 import tempfile
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -14,11 +15,10 @@ matplotlib.use("Agg")  # Sin ventana: el pipeline solo guarda PNG.
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from matplotlib.ticker import FuncFormatter, NullFormatter  # noqa: E402
 
 from bechdel import config  # noqa: E402
-from bechdel.excepciones import DatosInsuficientesError, EsquemaIncorrectoError  # noqa: E402
-from bechdel.utilidades import asegurar_carpeta, comprobar_columnas, formatear_millones  # noqa: E402
+from bechdel.excepciones import EsquemaIncorrectoError  # noqa: E402
+from bechdel.utilidades import asegurar_carpeta, comprobar_columnas  # noqa: E402
 
 # Valores de config.py (sección 6 de la guía). Si A aún no los ha definido allí,
 # se usan estos por defecto para que el módulo funcione igualmente.
@@ -56,23 +56,9 @@ COLORES_RESULTADO = getattr(
     },
 )
 
-_MIN_PELICULAS_GRUPO = 1
-
-
 def _etiqueta(resultado):
     """Devuelve el texto en español de un resultado ('notalk' -> 'No hablan entre ellas')."""
     return ETIQUETAS_RESULTADO.get(resultado, str(resultado))
-
-
-def _formato_dinero(valor, _posicion=None):
-    """Formatea un valor del eje (en dólares) como millones, para FuncFormatter."""
-    if valor >= 1_000_000:
-        decimales = 0
-    elif valor >= 100_000:
-        decimales = 1
-    else:
-        decimales = 2
-    return formatear_millones(valor, decimales)
 
 
 class GraficoBechdel:
@@ -151,7 +137,7 @@ class GraficoEvolucionDecadas(GraficoBechdel):
         comprobar_columnas(datos, "n_peliculas", "n_aprueban", "pct_aprueba")
         super().__init__(
             datos,
-            "Evolución del % de películas que aprueban el test de Bechdel",
+            "El aprobado subió hasta los 2000 y se estancó por debajo del 50 %",
             "Década",
             "Películas que aprueban (%)",
             "01_evolucion_decadas.png",
@@ -169,13 +155,14 @@ class GraficoEvolucionDecadas(GraficoBechdel):
                 f"{valor:.1f} %\n(n={int(n)})",
                 (decada, valor),
                 textcoords="offset points",
-                xytext=(0, 9),
+                xytext=(0, -12),  # Debajo del punto, para no chocar con la línea del 50 %.
                 ha="center",
+                va="top",
                 fontsize=8,
             )
         ax.set_xticks(decadas)
         ax.set_xticklabels([f"{d}s" for d in decadas])
-        ax.set_ylim(0, 100)
+        ax.set_ylim(0, 80)
         ax.set_xlim(decadas[0] - 4, decadas[-1] + 4)
         ax.grid(axis="y", alpha=0.3)
         ax.legend(loc="lower right")
@@ -191,7 +178,7 @@ class GraficoMotivosSuspenso(GraficoBechdel):
             raise EsquemaIncorrectoError(faltantes)
         super().__init__(
             datos,
-            "¿Por qué suspenden las películas?",
+            "La mitad de los suspensos: las mujeres no hablan entre ellas",
             "Número de películas",
             "Motivo de suspenso",
             "02_motivos_suspenso.png",
@@ -199,14 +186,17 @@ class GraficoMotivosSuspenso(GraficoBechdel):
         )
 
     def _dibujar(self, ax):
-        """Barras horizontales en el orden de config, con el valor al final."""
-        motivos = list(ORDEN_MOTIVOS_SUSPENSO)
+        """Barras horizontales de mayor a menor, con el número y el % de los suspensos al final."""
+        motivos = sorted(ORDEN_MOTIVOS_SUSPENSO, key=lambda m: int(self._datos[m]), reverse=True)
         valores = [int(self._datos[m]) for m in motivos]
-        barras = ax.barh([_etiqueta(m) for m in motivos], valores, color=COLOR_SUSPENDE)
-        ax.bar_label(barras, padding=3)
-        ax.invert_yaxis()  # El primer motivo del orden queda arriba.
-        ax.margins(x=0.12)
+        total = sum(valores)
+        barras = ax.barh([_etiqueta(m) for m in motivos], valores, color=COLOR_SUSPENDE,
+                         height=0.65, edgecolor="white", linewidth=2)
+        ax.bar_label(barras, labels=[f"{v} ({v / total * 100:.0f} %)" for v in valores], padding=4)
+        ax.invert_yaxis()  # El motivo más frecuente queda arriba.
+        ax.margins(x=0.18)
         ax.grid(axis="x", alpha=0.3)
+        ax.set_axisbelow(True)
 
 
 class GraficoComposicionDecadas(GraficoBechdel):
@@ -217,7 +207,7 @@ class GraficoComposicionDecadas(GraficoBechdel):
         comprobar_columnas(datos, "ok", *ORDEN_MOTIVOS_SUSPENSO)
         super().__init__(
             datos,
-            "Composición de los resultados del test por década",
+            "Hay más aprobados porque cae «no hablan entre ellas» (50 % → 28 %)",
             "Década",
             "Películas (%)",
             "03_composicion_decadas.png",
@@ -237,7 +227,13 @@ class GraficoComposicionDecadas(GraficoBechdel):
                 color=COLORES_RESULTADO.get(resultado),
                 label=_etiqueta(resultado),
                 width=0.7,
+                edgecolor="white",
+                linewidth=2,
             )
+            if resultado in ("ok", "notalk"):  # Solo se rotulan los dos tramos que cuentan la historia.
+                for x, y0, v in zip(posiciones, base, valores):
+                    ax.text(x, y0 + v / 2, f"{v:.0f} %", ha="center", va="center", fontsize=9,
+                            color="white", fontweight="bold")
             base = base + valores
         ax.set_xticks(posiciones)
         ax.set_xticklabels([f"{d}s" for d in self._datos.index])
@@ -245,108 +241,125 @@ class GraficoComposicionDecadas(GraficoBechdel):
         ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), title="Resultado")
 
 
-def _roi_por_grupo(datos):
-    """Devuelve (roi de las que aprueban, roi de las que suspenden), solo valores > 0."""
-    positivos = datos[datos["roi"] > 0]
-    aprueban = positivos.loc[positivos["aprueba"].astype(bool), "roi"].to_numpy(dtype=float)
-    suspenden = positivos.loc[~positivos["aprueba"].astype(bool), "roi"].to_numpy(dtype=float)
-    for nombre, grupo in (("Aprueba", aprueban), ("Suspende", suspenden)):
-        if len(grupo) < _MIN_PELICULAS_GRUPO:
-            raise DatosInsuficientesError(f"ROI de las que {nombre.lower()}", len(grupo), _MIN_PELICULAS_GRUPO)
-    return aprueban, suspenden
+class GraficoAprobadoPresupuesto(GraficoBechdel):
+    """Gráfico 4: barras con el % que aprueba en cada tramo de presupuesto."""
 
-
-class GraficoRentabilidad(GraficoBechdel):
-    """Gráfico 4: caja y bigotes del ROI de las que aprueban frente a las que suspenden."""
-
-    def __init__(self, datos, carpeta=None):
-        """Recibe la tabla de `datos_economicos()`."""
-        comprobar_columnas(datos, "aprueba", "roi")
+    def __init__(self, datos, media_global=None, carpeta=None):
+        """Recibe la tabla de `aprobado_por_presupuesto()` y, opcional, el % global de aprobado."""
+        comprobar_columnas(datos, "n_peliculas", "pct_aprueba")
         super().__init__(
             datos,
-            "Rentabilidad (ROI) según el resultado del test de Bechdel",
-            "Resultado del test",
-            "ROI = recaudación internacional / presupuesto (escala logarítmica)",
-            "04_rentabilidad_roi.png",
+            "Cuanto más cara es la película, menos aprueba el test",
+            "Presupuesto (en $ de 2013), dividido en 5 tramos con las mismas películas",
+            "Películas que aprueban (%)",
+            "04_aprobado_por_presupuesto.png",
             carpeta,
         )
+        self._media_global = media_global
 
     def _dibujar(self, ax):
-        """Dos cajas con escala log en Y y una línea en ROI = 1 (se recupera lo invertido)."""
-        aprueban, suspenden = _roi_por_grupo(self._datos)
-        cajas = ax.boxplot(
-            [aprueban, suspenden],
-            tick_labels=[f"Aprueba\n(n={len(aprueban)})", f"Suspende\n(n={len(suspenden)})"],
-            patch_artist=True,
-            widths=0.5,
-            medianprops={"color": "black", "linewidth": 2},
-            flierprops={"marker": "o", "markersize": 3, "alpha": 0.4},
-        )
-        for caja, color in zip(cajas["boxes"], (COLOR_APRUEBA, COLOR_SUSPENDE)):
-            caja.set_facecolor(color)
-            caja.set_alpha(0.75)
-        ax.set_yscale("log")
-        ax.axhline(1, linestyle="--", color="grey", linewidth=1)
-        ax.annotate("ROI = 1: ingresos = presupuesto", (0.5, 1), xycoords=ax.get_yaxis_transform(),
-                    textcoords="offset points", xytext=(0, -5), ha="center", va="top", fontsize=8, color="grey")
+        """Una barra por tramo con el % encima, n bajo cada tramo y la media global de referencia."""
+        etiquetas = [f"{tramo}\n(n={int(n)})" for tramo, n in zip(self._datos.index, self._datos["n_peliculas"])]
+        barras = ax.bar(etiquetas, self._datos["pct_aprueba"].to_numpy(dtype=float), color=COLOR_APRUEBA,
+                        width=0.65, edgecolor="white", linewidth=2)
+        ax.bar_label(barras, fmt="%.0f %%", padding=3, fontsize=10, fontweight="bold")
+        if self._media_global is not None:
+            ax.axhline(self._media_global, linestyle="--", color="grey", linewidth=1)
+            ax.annotate(f"Media de todas: {self._media_global:.0f} %", (1, self._media_global),
+                        xycoords=ax.get_yaxis_transform(), textcoords="offset points", xytext=(0, 4),
+                        ha="right", va="bottom", fontsize=8, color="grey")
+        ax.set_ylim(0, 70)
         ax.grid(axis="y", alpha=0.3)
+        ax.set_axisbelow(True)
 
 
-class GraficoPresupuestoRecaudacion(GraficoBechdel):
-    """Gráfico 5: dispersión presupuesto frente a recaudación, con la diagonal y = x."""
+class GraficoRentabilidadPresupuesto(GraficoBechdel):
+    """Gráfico 5: barras agrupadas con el ROI mediano de aprueban/suspenden en cada tramo de presupuesto."""
 
     def __init__(self, datos, carpeta=None):
-        """Recibe la tabla de `datos_economicos()`."""
-        comprobar_columnas(datos, "aprueba", "presupuesto_2013", "recaudacion_internacional_2013")
+        """Recibe la tabla de `rentabilidad_por_presupuesto()`."""
+        comprobar_columnas(datos, "roi_aprueba", "roi_suspende", "n_aprueba", "n_suspende")
         super().__init__(
             datos,
-            "Presupuesto frente a recaudación internacional",
-            "Presupuesto (millones de $ de 2013, escala logarítmica)",
-            "Recaudación internacional (millones de $ de 2013, escala logarítmica)",
-            "05_presupuesto_recaudacion.png",
+            "Con el mismo presupuesto, aprobar o suspender da casi lo mismo",
+            "Presupuesto (en $ de 2013), dividido en 5 tramos con las mismas películas",
+            "Dólares recaudados por cada dólar invertido\n(ROI mediano)",
+            "05_rentabilidad_por_presupuesto.png",
             carpeta,
         )
 
     def _dibujar(self, ax):
-        """Un punto por película (verde/rojo) y la diagonal 'lo que costó = lo que ganó'."""
-        datos = self._datos[
-            (self._datos["presupuesto_2013"] > 0) & (self._datos["recaudacion_internacional_2013"] > 0)
-        ]
-        aprueba = datos["aprueba"].astype(bool)
-        for mascara, color, etiqueta in ((aprueba, COLOR_APRUEBA, "Aprueba"), (~aprueba, COLOR_SUSPENDE, "Suspende")):
-            grupo = datos[mascara]
-            ax.scatter(
-                grupo["presupuesto_2013"].to_numpy(dtype=float),
-                grupo["recaudacion_internacional_2013"].to_numpy(dtype=float),
-                s=16,
-                alpha=0.55,
-                color=color,
-                label=f"{etiqueta} (n={len(grupo)})",
-            )
-        minimo = float(min(datos["presupuesto_2013"].min(), datos["recaudacion_internacional_2013"].min()))
-        maximo = float(max(datos["presupuesto_2013"].max(), datos["recaudacion_internacional_2013"].max()))
-        ax.plot([minimo, maximo], [minimo, maximo], linestyle="--", color="black", linewidth=1,
-                label="Recaudación = presupuesto")
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        for eje in (ax.xaxis, ax.yaxis):
-            eje.set_major_formatter(FuncFormatter(_formato_dinero))
-            eje.set_minor_formatter(NullFormatter())
-        ax.grid(alpha=0.3)
-        ax.legend(loc="upper left", title="Por encima de la línea: ganó dinero", fontsize=8, title_fontsize=8)
+        """Dos barras por tramo (aprueba/suspende) con el ROI escrito como '3.5×'."""
+        posiciones = np.arange(len(self._datos))
+        ancho = 0.38
+        for desplazamiento, columna, color, nombre in (
+            (-ancho / 2, "roi_aprueba", COLOR_APRUEBA, "Aprueban"),
+            (ancho / 2, "roi_suspende", COLOR_SUSPENDE, "Suspenden"),
+        ):
+            barras = ax.bar(posiciones + desplazamiento, self._datos[columna].to_numpy(dtype=float), ancho,
+                            color=color, edgecolor="white", linewidth=2, label=nombre)
+            ax.bar_label(barras, fmt="%.1f×", padding=3, fontsize=9)
+        ax.axhline(1, linestyle="--", color="grey", linewidth=1)
+        # Hueco a la derecha de la última barra para que la etiqueta de la línea no pise ninguna barra.
+        ax.set_xlim(-0.6, len(posiciones) - 0.4 + 0.7)
+        ax.annotate("1× =\nrecupera\nlo invertido", (1, 1), xycoords=ax.get_yaxis_transform(),
+                    textcoords="offset points", xytext=(0, 4), ha="right", va="bottom", fontsize=8, color="grey")
+        ax.set_xticks(posiciones)
+        ax.set_xticklabels(list(self._datos.index))
+        ax.set_ylim(0, float(self._datos[["roi_aprueba", "roi_suspende"]].to_numpy().max()) * 1.2)
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_axisbelow(True)
+        ax.legend(loc="upper right", frameon=False)
+
+
+class GraficoPresupuestoDecadas(GraficoBechdel):
+    """Gráfico 6: líneas con el presupuesto mediano de las que aprueban y suspenden en cada década."""
+
+    def __init__(self, datos, carpeta=None):
+        """Recibe la tabla de `presupuesto_por_decada()` (índice = década)."""
+        comprobar_columnas(datos, "presupuesto_aprueba", "presupuesto_suspende")
+        super().__init__(
+            datos,
+            "Desde los 90, las películas que aprueban reciben menos presupuesto",
+            "Década",
+            "Presupuesto mediano (millones de $ de 2013)",
+            "06_presupuesto_por_decada.png",
+            carpeta,
+        )
+
+    def _dibujar(self, ax):
+        """Dos líneas, la brecha sombreada y etiquetas directas al final de cada línea."""
+        decadas = np.array(self._datos.index, dtype=float)
+        aprueba = self._datos["presupuesto_aprueba"].to_numpy(dtype=float) / 1_000_000
+        suspende = self._datos["presupuesto_suspende"].to_numpy(dtype=float) / 1_000_000
+        ax.fill_between(decadas, aprueba, suspende, where=suspende >= aprueba, color="grey", alpha=0.12,
+                        interpolate=True, linewidth=0)
+        for valores, color, nombre in ((aprueba, COLOR_APRUEBA, "Aprueban"), (suspende, COLOR_SUSPENDE, "Suspenden")):
+            ax.plot(decadas, valores, marker="o", markersize=7, linewidth=2.2, color=color, label=nombre)
+            ax.annotate(f"{nombre}: {valores[-1]:.0f} M$", (decadas[-1], valores[-1]), textcoords="offset points",
+                        xytext=(8, 0), va="center", fontsize=9, fontweight="bold")
+        brecha = suspende[-1] - aprueba[-1]
+        ax.annotate(f"Brecha: {brecha:.0f} M$", (decadas[-1], (aprueba[-1] + suspende[-1]) / 2),
+                    textcoords="offset points", xytext=(-10, 0), ha="right", va="center", fontsize=8, color="grey")
+        ax.set_xticks(decadas)
+        ax.set_xticklabels([f"{int(d)}s" for d in decadas])
+        ax.set_xlim(decadas[0] - 3, decadas[-1] + 9)
+        ax.set_ylim(0, max(aprueba.max(), suspende.max()) * 1.2)
+        ax.grid(axis="y", alpha=0.3)
+        ax.legend(loc="upper left", frameon=False)
 
 
 class GraficoDesacuerdo(GraficoBechdel):
-    """Gráfico 6 (opcional): barras verticales con el % de desacuerdo por resultado."""
+    """Gráfico 7: barras verticales con el % de desacuerdo por resultado."""
 
     def __init__(self, datos, carpeta=None):
         """Recibe la Series de `desacuerdo_por_categoria()` (índice = resultado)."""
         super().__init__(
             datos,
-            "Desacuerdo entre los evaluadores según el resultado del test",
+            "Los suspensos generan más dudas entre los evaluadores que los aprobados",
             "Resultado del test",
             "Películas con desacuerdo (%)",
-            "06_desacuerdo_categoria.png",
+            "07_desacuerdo_categoria.png",
             carpeta,
         )
 
@@ -354,30 +367,31 @@ class GraficoDesacuerdo(GraficoBechdel):
         """Barras verticales con el porcentaje escrito encima."""
         categorias = list(self._datos.index)
         colores = [COLORES_RESULTADO.get(c) for c in categorias]
-        barras = ax.bar([_etiqueta(c) for c in categorias], self._datos.to_numpy(dtype=float), color=colores)
+        etiquetas = [textwrap.fill(_etiqueta(c), 12) for c in categorias]
+        barras = ax.bar(etiquetas, self._datos.to_numpy(dtype=float), color=colores,
+                        width=0.7, edgecolor="white", linewidth=2)
         ax.bar_label(barras, fmt="%.1f %%", padding=3)
         ax.margins(y=0.15)
         ax.grid(axis="y", alpha=0.3)
-        ax.tick_params(axis="x", labelsize=8)
+        ax.set_axisbelow(True)
 
 
-def crear_graficos(analizador, carpeta=None, incluir_opcional=False):
+def crear_graficos(analizador, carpeta=None):
     """Crea (sin generar) los gráficos del pipeline a partir de un AnalizadorBechdel.
 
     Devuelve una lista de objetos gráfico; cada uno se genera con `.generar()`.
-    Con `incluir_opcional=True` añade también el gráfico de desacuerdo.
     """
-    economicos = analizador.datos_economicos()
-    graficos = [
+    return [
         GraficoEvolucionDecadas(analizador.tasa_por_decada(), carpeta),
         GraficoMotivosSuspenso(analizador.motivos_suspenso(), carpeta),
         GraficoComposicionDecadas(analizador.composicion_por_decada(), carpeta),
-        GraficoRentabilidad(economicos, carpeta),
-        GraficoPresupuestoRecaudacion(economicos, carpeta),
+        GraficoAprobadoPresupuesto(
+            analizador.aprobado_por_presupuesto(), analizador.tasa_aprobado_global(), carpeta
+        ),
+        GraficoRentabilidadPresupuesto(analizador.rentabilidad_por_presupuesto(), carpeta),
+        GraficoPresupuestoDecadas(analizador.presupuesto_por_decada(), carpeta),
+        GraficoDesacuerdo(analizador.desacuerdo_por_categoria(), carpeta),
     ]
-    if incluir_opcional:
-        graficos.append(GraficoDesacuerdo(analizador.desacuerdo_por_categoria(), carpeta))
-    return graficos
 
 
 if __name__ == "__main__":
@@ -394,15 +408,22 @@ if __name__ == "__main__":
         index=decadas,
         columns=["ok", "nowomen", "notalk", "men", "dubious"],
     )
-    presupuesto = rng.lognormal(17, 1, 200).astype("int64")
-    recaudacion = (presupuesto * rng.lognormal(0.8, 1, 200)).astype("int64")
-    economicos = pd.DataFrame(
+    tramos = pd.Index(["< 13 M$", "13–29 M$", "29–50 M$", "50–92 M$", "> 92 M$"], name="tramo")
+    por_presupuesto = pd.DataFrame(
+        {"n_peliculas": [357, 358, 355, 357, 356], "pct_aprueba": [52.9, 48.9, 50.4, 40.6, 30.9]}, index=tramos
+    )
+    rentabilidad = pd.DataFrame(
         {
-            "aprueba": rng.random(200) < 0.45,
-            "presupuesto_2013": presupuesto,
-            "recaudacion_internacional_2013": recaudacion,
-            "roi": recaudacion / presupuesto,
-        }
+            "roi_aprueba": rng.uniform(2, 4, 5),
+            "roi_suspende": rng.uniform(2, 4, 5),
+            "n_aprueba": [189, 175, 179, 145, 110],
+            "n_suspende": [168, 183, 176, 212, 246],
+        },
+        index=tramos,
+    )
+    presupuesto = pd.DataFrame(
+        {"presupuesto_aprueba": [22e6, 34e6, 37e6, 31e6, 27e6], "presupuesto_suspende": [21e6, 31e6, 51e6, 46e6, 47e6]},
+        index=decadas,
     )
     desacuerdo = pd.Series({"ok": 30.0, "nowomen": 20.0, "notalk": 25.0, "men": 15.0, "dubious": 40.0})
 
@@ -411,8 +432,9 @@ if __name__ == "__main__":
         GraficoEvolucionDecadas(por_decada, salida),
         GraficoMotivosSuspenso(motivos, salida),
         GraficoComposicionDecadas(composicion, salida),
-        GraficoRentabilidad(economicos, salida),
-        GraficoPresupuestoRecaudacion(economicos, salida),
+        GraficoAprobadoPresupuesto(por_presupuesto, 44.8, salida),
+        GraficoRentabilidadPresupuesto(rentabilidad, salida),
+        GraficoPresupuestoDecadas(presupuesto, salida),
         GraficoDesacuerdo(desacuerdo, salida),
     ):
         print(grafico.generar())

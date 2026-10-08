@@ -106,6 +106,58 @@ class AnalizadorBechdel:
             }
         return pd.DataFrame.from_dict(filas, orient="index")
 
+    def _con_tramo_presupuesto(self, tramos):
+        """Devuelve `datos_economicos()` con una columna `tramo` (texto tipo '13–28 M$').
+
+        Los tramos se cortan por cuantiles, así que todos tienen casi las mismas películas.
+        """
+        economicos = self.datos_economicos()
+        cortes = np.quantile(economicos["presupuesto_2013"], np.linspace(0, 1, tramos + 1))
+        millones = [f"{c / 1_000_000:.0f}" for c in cortes]
+        etiquetas = [f"< {millones[1]} M$"]
+        etiquetas += [f"{millones[i]}–{millones[i + 1]} M$" for i in range(1, tramos - 1)]
+        etiquetas += [f"> {millones[-2]} M$"]
+        economicos["tramo"] = pd.qcut(economicos["presupuesto_2013"], tramos, labels=etiquetas)
+        return economicos
+
+    def aprobado_por_presupuesto(self, tramos=config.N_TRAMOS_PRESUPUESTO):
+        """Devuelve, por tramo de presupuesto, n_peliculas, n_aprueban y pct_aprueba."""
+        grupos = self._con_tramo_presupuesto(tramos).groupby("tramo", observed=True)["aprueba"]
+        tabla = pd.DataFrame({"n_peliculas": grupos.size(), "n_aprueban": grupos.sum().astype("int64")})
+        tabla["pct_aprueba"] = np.round(tabla["n_aprueban"] / tabla["n_peliculas"] * 100, 1)
+        return tabla
+
+    def rentabilidad_por_presupuesto(self, tramos=config.N_TRAMOS_PRESUPUESTO):
+        """Devuelve, por tramo de presupuesto, el ROI mediano de las que aprueban y de las que suspenden.
+
+        Columnas: roi_aprueba, roi_suspende, n_aprueba, n_suspende. Comparar dentro de cada
+        tramo evita mezclar películas baratas con superproducciones.
+        """
+        economicos = self._con_tramo_presupuesto(tramos)
+        grupos = economicos.groupby(["tramo", "aprueba"], observed=True)["roi"]
+        medianas = grupos.median().unstack()
+        conteos = grupos.size().unstack()
+        if conteos.isna().any().any():
+            raise DatosInsuficientesError("rentabilidad por tramo de presupuesto", 0, 1)
+        return pd.DataFrame(
+            {
+                "roi_aprueba": medianas[True],
+                "roi_suspende": medianas[False],
+                "n_aprueba": conteos[True].astype("int64"),
+                "n_suspende": conteos[False].astype("int64"),
+            }
+        )
+
+    def presupuesto_por_decada(self):
+        """Devuelve, por década, la mediana de presupuesto (en $ de 2013) de las que aprueban y suspenden.
+
+        Columnas: presupuesto_aprueba, presupuesto_suspende.
+        """
+        medianas = self._datos.groupby(["decada", "aprueba"])["presupuesto_2013"].median().unstack()
+        return pd.DataFrame(
+            {"presupuesto_aprueba": medianas[True], "presupuesto_suspende": medianas[False]}
+        ).astype("float64")
+
     def desacuerdo_por_categoria(self):
         """Devuelve (Series) el % de películas con desacuerdo en cada resultado."""
         resultado = self._datos["resultado"].astype(str)
@@ -148,4 +200,7 @@ if __name__ == "__main__":
     print(analizador.motivos_suspenso())
     print(analizador.composicion_por_decada())
     print(analizador.comparar_economia())
+    print(analizador.aprobado_por_presupuesto())
+    print(analizador.rentabilidad_por_presupuesto())
+    print(analizador.presupuesto_por_decada())
     print(analizador.desacuerdo_por_categoria())

@@ -64,6 +64,9 @@ ORDEN_MOTIVOS_SUSPENSO = ["nowomen", "notalk", "men", "dubious"]
 # Mínimo de películas para que un porcentaje por grupo sea fiable.
 MIN_PELICULAS_DECADA = 5
 
+# En cuántos tramos (con el mismo número de películas) se divide el presupuesto.
+N_TRAMOS_PRESUPUESTO = 5
+
 # ---- Gráficos ----
 
 COLOR_APRUEBA = "#2a9d8f"

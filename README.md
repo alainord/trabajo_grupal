@@ -45,6 +45,8 @@ python demo_errores.py
 | `resultados/peliculas_limpio.csv` | La tabla limpia |
 | `resultados/graficos/*.png` | Los gráficos del análisis |
 
+Las conclusiones, con cada gráfico explicado, están en [RESULTADOS.md](RESULTADOS.md).
+
 ## Estructura
 
 ```

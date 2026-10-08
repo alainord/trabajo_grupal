@@ -16,13 +16,7 @@ from bechdel.excepciones import (
     ValorFueraDeDominioError,
 )
 from bechdel.limpieza import DepuradorPeliculas
-from bechdel.visualizacion import (
-    GraficoComposicionDecadas,
-    GraficoEvolucionDecadas,
-    GraficoMotivosSuspenso,
-    GraficoPresupuestoRecaudacion,
-    GraficoRentabilidad,
-)
+from bechdel.visualizacion import crear_graficos
 
 
 def main(ruta=config.RUTA_DATOS):
@@ -41,13 +35,7 @@ def main(ruta=config.RUTA_DATOS):
         analizador = AnalizadorBechdel(limpio)
 
         # 4. Dibujar
-        graficos = [
-            GraficoEvolucionDecadas(analizador.tasa_por_decada()),
-            GraficoMotivosSuspenso(analizador.motivos_suspenso()),
-            GraficoComposicionDecadas(analizador.composicion_por_decada()),
-            GraficoRentabilidad(analizador.datos_economicos()),
-            GraficoPresupuestoRecaudacion(analizador.datos_economicos()),
-        ]
+        graficos = crear_graficos(analizador)
         rutas_graficos = [grafico.generar() for grafico in graficos]
     except (FileNotFoundError, FicheroNoValidoError) as error:
         print(f"No se ha podido cargar el archivo: {error}")
