@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# Entorno virtual (cada uno tiene el suyo)
+.venv/
+
+# Basura del sistema operativo
+.DS_Store
+
+# Configuracion del editor de cada uno
+.vscode/
+.idea/
