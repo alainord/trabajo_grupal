@@ -286,9 +286,12 @@ Así tiene que quedar la tabla después de la limpieza. Persona B se compromete 
 | `tasa_por_decada()` | Tabla: una fila por década, con las columnas `n_peliculas`, `n_aprueban` y `pct_aprueba` | Gráfico 1 (líneas) |
 | `motivos_suspenso()` | Una columna (Series): cuántas películas hay por cada motivo de suspenso, sin `ok`, en el orden `nowomen`, `notalk`, `men`, `dubious` | Gráfico 2 (barras horizontales) |
 | `composicion_por_decada()` | Tabla: filas = décadas, columnas = los 5 resultados, valores = % (cada fila suma 100) | Gráfico 3 (barras apiladas) |
-| `datos_economicos()` | La tabla limpia **sin las filas que no tienen dinero**, solo con las columnas `aprueba`, `presupuesto_2013`, `recaudacion_internacional_2013` y `roi` | Gráficos 4 y 5 |
+| `datos_economicos()` | La tabla limpia **sin las filas que no tienen dinero**, solo con las columnas `aprueba`, `presupuesto_2013`, `recaudacion_internacional_2013` y `roi` | Base de los métodos por presupuesto |
 | `comparar_economia()` | Tabla: una fila para "Aprueba" y otra para "Suspende", con las medianas de presupuesto, recaudación y ROI y el número de películas | Texto del PPT |
-| `desacuerdo_por_categoria()` | Una columna (Series): % de películas con desacuerdo en cada resultado | Gráfico 6 (opcional) |
+| `aprobado_por_presupuesto()` | Tabla: una fila por tramo de presupuesto (5 tramos con las mismas películas), con `n_peliculas`, `n_aprueban` y `pct_aprueba` | Gráfico 4 (barras) |
+| `rentabilidad_por_presupuesto()` | Tabla: una fila por tramo de presupuesto, con `roi_aprueba`, `roi_suspende` (medianas), `n_aprueba` y `n_suspende` | Gráfico 5 (barras agrupadas) |
+| `presupuesto_por_decada()` | Tabla: una fila por década, con `presupuesto_aprueba` y `presupuesto_suspende` (medianas, en $ de 2013) | Gráfico 6 (líneas) |
+| `desacuerdo_por_categoria()` | Una columna (Series): % de películas con desacuerdo en cada resultado | Gráfico 7 (barras) |
 | `filtrar(**condiciones)` | La tabla limpia, filtrada | Uso general |
 
 ### 5.4 Las alarmas (excepciones) del proyecto
@@ -728,9 +731,12 @@ Cada hija:
 | 1 | `GraficoEvolucionDecadas` | **Líneas** con puntos | `tasa_por_decada()` | % de aprobado en cada década | Una línea horizontal discontinua al **50 %** como referencia, y encima de cada punto el número de películas (`n=…`) |
 | 2 | `GraficoMotivosSuspenso` | **Barras horizontales** | `motivos_suspenso()` | Cuántas suspenden por cada motivo | Ordenadas según `config`, con el número escrito al final de cada barra y las etiquetas en español ("No hablan entre ellas", etc.) |
 | 3 | `GraficoComposicionDecadas` | **Barras apiladas al 100 %** | `composicion_por_decada()` | De qué se compone cada década | Un color por resultado y la leyenda fuera del gráfico para que no tape |
-| 4 | `GraficoRentabilidad` | **Caja y bigotes** (boxplot) | `datos_economicos()` | La distribución del ROI de las que aprueban frente a las que suspenden | **Escala logarítmica** en el eje Y (`ax.set_yscale("log")`), porque hay valores extremos. Explica en el PPT qué es una caja y bigotes |
-| 5 | `GraficoPresupuestoRecaudacion` | **Puntos** (dispersión) | `datos_economicos()` | Cada punto es una película: presupuesto frente a recaudación | Escala log en los dos ejes; color verde/rojo según aprueba o suspende; una **línea diagonal** y = x ("lo que costó = lo que ganó"), de modo que los puntos por encima ganaron dinero |
-| 6 *(opcional)* | `GraficoDesacuerdo` | Barras verticales | `desacuerdo_por_categoria()` | % de desacuerdo por categoría | |
+| 4 | `GraficoAprobadoPresupuesto` | **Barras** | `aprobado_por_presupuesto()` y `tasa_aprobado_global()` | % de aprobado en cada tramo de presupuesto | Línea discontinua con la media global y `n=…` bajo cada tramo |
+| 5 | `GraficoRentabilidadPresupuesto` | **Barras agrupadas** | `rentabilidad_por_presupuesto()` | ROI mediano de las que aprueban frente a las que suspenden, **dentro de cada tramo** de presupuesto | Escala lineal (se lee como "3,5× = recauda 3,5 $ por cada $ invertido") y línea en 1× ("recupera lo invertido") |
+| 6 | `GraficoPresupuestoDecadas` | **Líneas** | `presupuesto_por_decada()` | Presupuesto mediano de las que aprueban y las que suspenden en cada década | La brecha entre las dos líneas sombreada y etiquetas directas al final |
+| 7 | `GraficoDesacuerdo` | Barras verticales | `desacuerdo_por_categoria()` | % de desacuerdo por categoría | |
+
+Todos los títulos dicen **la conclusión** del gráfico, no solo lo que muestra. La función `crear_graficos(analizador)` crea los 7 y es la que usa `main.py`.
 
 **Reglas para todos los gráficos:**
 - Usa **siempre los mismos colores** para "aprueba" y "suspende" (los de `config.py`).

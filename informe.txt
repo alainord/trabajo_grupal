@@ -1,0 +1,34 @@
+class 'pandas.DataFrame'>
+RangeIndex: 1794 entries, 0 to 1793
+Data columns (total 11 columns):
+ #   Column                          Non-Null Count  Dtype   
+---  ------                          --------------  -----   
+ 0   imdb                            1794 non-null   str     
+ 1   titulo                          1794 non-null   str     
+ 2   anio                            1794 non-null   int64   
+ 3   decada                          1794 non-null   int64   
+ 4   resultado                       1794 non-null   category
+ 5   aprueba                         1794 non-null   bool    
+ 6   hay_desacuerdo                  1794 non-null   bool    
+ 7   presupuesto_2013                1794 non-null   Int64   
+ 8   recaudacion_nacional_2013       1776 non-null   Int64   
+ 9   recaudacion_internacional_2013  1783 non-null   Int64   
+ 10  roi                             1783 non-null   float64 
+dtypes: Int64(3), bool(2), category(1), float64(1), int64(2), str(2)
+memory usage: 122.8 KB
+filas_entrada: 1794
+columnas_renombradas: 6
+titulos_html_corregidos: 98
+imdb_corregidos: 2
+peliculas_con_desacuerdo: 425
+peliculas_aprueban: 803
+peliculas_suspenden: 991
+ceros_falsos_a_nan: 0
+huecos_presupuesto_2013: 0
+huecos_recaudacion_nacional_2013: 18
+huecos_recaudacion_internacional_2013: 11
+duplicados_eliminados: 0
+roi_calculados: 1783
+columnas_borradas: 8
+filas_salida: 1794
+Filas: 1794
